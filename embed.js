@@ -1,8 +1,8 @@
 const Discord = require('discord.js');
-module.exports = (author, text, title, version, client) => {
+module.exports = (author, text, title, version, client, ephemeral = false) => {
     const embed = new Discord.EmbedBuilder()
         .setAuthor({ name: `${author.username}`, iconURL: author.avatarURL() })
-        .setColor('#ff6060')
+        .setColor('#5ee655')
         .setDescription(text)
         .addFields(
             { name: 'Ping', value: `${client.ws.ping} ms`, inline: true}
@@ -10,6 +10,6 @@ module.exports = (author, text, title, version, client) => {
         .setTimestamp()
         .setFooter({ text: `Lid v${version}`, iconURL: client.user.displayAvatarURL() })
         .setTitle(title);
-    let returning = { content: "", embeds: [embed.data] };
+    let returning = { content: "", embeds: [embed.data], ephemeral: ephemeral };
     return returning;
 }

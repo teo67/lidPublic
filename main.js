@@ -40,9 +40,6 @@ client.on(Discord.Events.InteractionCreate, async interaction => {
             if(result.type != values.types.ARRAY) {
                 throw "Improper formatting";
             }
-            if(outputFormat == "none") {
-                return;
-            }
             switch(outputFormat) {
                 case "first-only":
                     output = values.getString(result.val[0]);
@@ -61,6 +58,9 @@ client.on(Discord.Events.InteractionCreate, async interaction => {
                         }
                     }
                     break;
+                case "none":
+                    output = "Done!";
+                    break;
                 default:
                     output = "Error: invalid output format!";
             }
@@ -72,7 +72,7 @@ client.on(Discord.Events.InteractionCreate, async interaction => {
             output = " ";
         }
         
-        const _embeds = splitEmbed(interaction.user, output, "Output", process.env.VERSION, client);
+        const _embeds = splitEmbed(interaction.user, output, "Output", process.env.VERSION, client, outputTarget == "ephemeral-message");
         if(outputTarget == "direct-message") {
             try {
                 for(const _embed of _embeds) {
