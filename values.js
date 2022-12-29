@@ -11,7 +11,11 @@ const types = {
     STRING: 1, 
     BOOLEAN: 2, 
     ARRAY: 3, 
-    NONE: 4
+    NONE: 4,
+    VARIABLE: 5,
+    FUNCTION: 6,
+    ARRAY_REFERENCE: 7,
+    FUNCTION_REFERENCE: 8
 };
 const getString = value => {
     switch(value.type) {
@@ -71,6 +75,21 @@ const getArray = value => {
     }
     throw "Expecting an array!";
 }
+const breakReference = (value, reference) => {
+    if(value.type == types.ARRAY_REFERENCE) {
+        return new Value(types.ARRAY, reference[value.val].val);
+    }
+    if(value.type == types.FUNCTION_REFERENCE) {
+        return new Value(types.FUNCTION, reference[value.val].val);
+    }
+    return value;
+}
+const breakVariable = (value, scope) => {
+    if(value.type == types.VARIABLE) {
+        return breakVariable(scope.get(value.val), scope);
+    }
+    return value;
+}
 module.exports = {
-    Value, types, getString, getNumber, getBoolean, getArray
+    Value, types, getString, getNumber, getBoolean, getArray, breakVariable, breakReference
 };

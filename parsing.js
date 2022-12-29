@@ -16,10 +16,17 @@ class Parser {
         return returning;
     }
 
+    requireSymbol(symbol) {
+        const next = this.next();
+        if(next.type != TokenTypes.SYMBOL || next.raw != symbol) {
+            throw `Expecting '${symbol}'!`;
+        }
+    }
+
     parseExpressions() {
         const expressions = [];
         while(!this.lexer.over) {
-            expressions.push(this.parseSums());
+            expressions.push(this.parseAssignment());
         }
         return new operators.Operator(operators.operatorTypes.ARRAY, expressions);
     }
@@ -41,6 +48,32 @@ class Parser {
         }
         this.stored = next;
         return current;
+    }
+
+    parseList(endsymbol = "]") {
+        let returning = [];
+        let next = this.next();
+        while(next.type != TokenTypes.SYMBOL || next.raw != endsymbol) {
+            if(next.type != TokenTypes.SYMBOL || next.raw != ",") {
+                this.stored = next;
+                const adding = this.parseAssignment();
+                returning.push(adding);
+            }
+            next = this.next();
+        }
+        this.stored = next;
+        return new operators.Operator(operators.operatorTypes.ARRAY, returning);
+    }
+
+    checkAssignment(raw, current, under) {
+        if(raw == "=") {
+            return new operators.Operator(operators.operatorTypes.ASSIGNMENT, [current, this[under]()]);
+        }
+        return null;
+    }
+
+    parseAssignment() {
+        return this.parse("parseSums", "checkAssignment");
     }
 
     checkSums(raw, current, under) {
@@ -92,6 +125,23 @@ class Parser {
             }
             if(value.raw == "none") {
                 return new operators.Operator(operators.operatorTypes.NONE, null);
+            }
+            if(value.raw == "delete") {
+                const next = this.next().raw;
+                return new operators.Operator(operators.operatorTypes.DELETE, next);
+            }
+            return new operators.Operator(operators.operatorTypes.REFERENCE, value.raw);
+        }
+        if(value.type == TokenTypes.SYMBOL) {
+            if(value.raw == "(") {
+                const res = this.parseAssignment();
+                this.requireSymbol(")");
+                return res;
+            }
+            if(value.raw == "[") {
+                const res = this.parseList();
+                this.requireSymbol("]");
+                return res;
             }
         }
         throw `Unexpected token: ${value.raw}`;

@@ -1,25 +1,16 @@
 require('dotenv').config();
 
 const Discord = require('discord.js');
-const fs = require('fs/promises');
-const Lex = require('./lex.js').Lex;
-const Parser = require('./parsing.js');
-const operators = require('./operators.js');
-const values = require('./values.js');
-const embed = require('./embed.js');
-const splitEmbed = require('./splitEmbed.js');
-const navigate = require('./navigate.js');
+const embed = require('./helpers/embed.js');
+const splitEmbed = require('./helpers/splitEmbed.js');
+const navigate = require('./helpers/navigate.js');
+const runText = require('./helpers/runText.js');
 
 const client = new Discord.Client({ intents: [Discord.GatewayIntentBits.Guilds, Discord.GatewayIntentBits.MessageContent, Discord.GatewayIntentBits.GuildMessages, Discord.GatewayIntentBits.GuildMessageReactions] });
 
 client.once(Discord.Events.ClientReady, () => {
     console.log("lid is up and running!");
 });
-
-const writeDataToJSON = async (data, fileName) => {
-    const asJson = JSON.stringify(data);
-    await fs.writeFile(fileName + ".json", asJson);
-}
 
 client.on(Discord.Events.InteractionCreate, async interaction => {
     try {
@@ -31,42 +22,7 @@ client.on(Discord.Events.InteractionCreate, async interaction => {
         const outputFormat = interaction.options.getString("output-format") ?? "last-only";
         const outputTarget = interaction.options.getString("output-target") ?? "channel-message";
         await interaction.deferReply({ ephemeral: outputTarget == "ephemeral-message" });
-        const lexer = new Lex(text);
-        const parser = new Parser(lexer);
-        let output;
-        try {
-            const expr = parser.parseExpressions();
-            const result = operators.operatorArray[expr.num](expr.args);
-            if(result.type != values.types.ARRAY) {
-                throw "Improper formatting";
-            }
-            switch(outputFormat) {
-                case "first-only":
-                    output = values.getString(result.val[0]);
-                    break;
-                case "last-only":
-                    output = values.getString(result.val[result.val.length - 1]);
-                    break;
-                case "all":
-                    output = "";
-                    for(let i = 0; i < result.val.length; i++) {
-                        const res = values.getString(result.val[i]);
-                        if(res.length > 0) {
-                            output += `Expression ${i}: ${res}\n`;
-                        } else {
-                            output += `No valid return value for expression ${i}`;
-                        }
-                    }
-                    break;
-                case "none":
-                    output = "Done!";
-                    break;
-                default:
-                    output = "Error: invalid output format!";
-            }
-        } catch(e) {
-            output = `There was an error parsing your code: \n${e}`;
-        }
+        let output = runText(text, outputFormat);
 
         if(output.length == 0) {
             output = " ";
