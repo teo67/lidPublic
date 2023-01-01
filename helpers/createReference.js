@@ -1,6 +1,7 @@
 module.exports = (references, referenceData, newref) => {
     const newr = {
-        num: 0, 
+        uses: {}, 
+        usedBy: 0,
         val: newref
     };
     if(referenceData.stack.length == 0) {

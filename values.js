@@ -15,9 +15,11 @@ const types = {
     VARIABLE: 5,
     FUNCTION: 6,
     ARRAY_REFERENCE: 7,
-    FUNCTION_REFERENCE: 8
+    FUNCTION_REFERENCE: 8,
+    ARRAY_ACCESS: 9
 };
-const getString = value => {
+const getString = (val, scope, references) => {
+    const value = breakAccess(breakReference(breakVariable(val, scope), references), references);
     switch(value.type) {
         case types.NUMBER:
             return `${value.val}`;
@@ -28,7 +30,7 @@ const getString = value => {
         case types.ARRAY:
             let returning = "[";
             for(let i = 0; i < value.val.length; i++) {
-                returning += getString(value.val[i]);
+                returning += getString(value.val[i], scope, references);
                 if(i != value.val.length - 1) {
                     returning += ", ";
                 }
@@ -90,6 +92,20 @@ const breakVariable = (value, scope) => {
     }
     return value;
 }
+const breakAccess = (value, reference) => {
+    if(value.type == types.ARRAY_ACCESS) {
+        let arr = breakReference(value.val.arr, reference);
+        if(arr.type != types.ARRAY) {
+            throw `Unable to access element ${value.val.num} of a non-array item!`;
+        }
+        arr = arr.val;
+        if(arr.length <= value.val.num) {
+            throw `The array being accessed only has ${arr.length} elements (required: ${value.val.num}).`;
+        }
+        return breakAccess(arr[value.val.num], reference);
+    }
+    return value;
+}
 module.exports = {
-    Value, types, getString, getNumber, getBoolean, getArray, breakVariable, breakReference
+    Value, types, getString, getNumber, getBoolean, getArray, breakVariable, breakReference, breakAccess
 };

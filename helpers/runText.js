@@ -6,6 +6,19 @@ const data = require('./data.js');
 const Scope = require('../scope.js');
 const deleteReference = require('./deleteReference.js');
 
+const removeReference = (key, references, referenceData) => {
+    if(references[key] !== undefined) {
+        const ref = references[key];
+        if(ref.usedBy == 0) {
+            for(const use of Object.keys(ref.uses)) {
+                references[use].usedBy--;
+                removeReference(use, references, referenceData);
+            }
+            deleteReference(references, referenceData, key);
+        }
+    }
+}
+
 module.exports = async (text, outputFormat) => {
     let baseScope;
     let references;
@@ -13,12 +26,12 @@ module.exports = async (text, outputFormat) => {
     try {
         baseScope = await data.read("./cache/variables", "{}");
         references = await data.read("./cache/references", "{}");
-        referenceData = await data.read("./cache/referenceData", "{\"next\": 0, \"stack\": []}");
+        referenceData = await data.read("./cache/referenceData", "{\"next\": 0, \"stack\": [], \"baseUses\": {}}");
     } catch {
         return "Error reading previous variable scope!";
     }
     const translated = new Scope(null, baseScope, true);
-    referenceData.edited = [];
+    referenceData.edited = {};
     let result;
     try {
         const lex = new Lex(text);
@@ -26,15 +39,41 @@ module.exports = async (text, outputFormat) => {
         const expr = parser.parseExpressions();
         result = operators.operatorArray[expr.num](expr.args, translated, references, referenceData);
     } catch(e) {
+        //console.log(e);
         return `There was an error parsing your code: \n${e}`;
     }
-    for(const edited of referenceData.edited) {
-        const ref = references[edited];
-        if(ref === undefined) {
-            continue;
+    let output = "";
+    if(result.type != values.types.ARRAY) {
+        output = "Error: improper formatting";
+    } else {
+        switch(outputFormat) {
+            case "first-only":
+                output = values.getString(result.val[0], translated, references);
+                break;
+            case "last-only":
+                output = values.getString(result.val[result.val.length - 1], translated, references);
+                break;
+            case "all":
+                for(let i = 0; i < result.val.length; i++) {
+                    const res = values.getString(result.val[i], translated, references);
+                    if(res.length > 0) {
+                        output += `Expression ${i}: ${res}\n`;
+                    } else {
+                        output += `No valid return value for expression ${i}`;
+                    }
+                }
+                break;
+            case "none":
+                output = "Done!";
+                break;
+            default:
+                output = "Error: invalid output format!";
         }
-        if(ref.num == 0) {
-            deleteReference(references, referenceData, edited); // delete them if no longer being used
+    }
+    for(const key of Object.keys(referenceData.edited)) {
+        console.log(`Checking reference ${key}...`);
+        if(referenceData.edited[key]) {
+            removeReference(key, references, referenceData);
         }
     }
     delete referenceData.edited;
@@ -43,30 +82,7 @@ module.exports = async (text, outputFormat) => {
         await data.write(references, "./cache/references");
         await data.write(referenceData, "./cache/referenceData");
     } catch {
-        return "Error writing to variable scope!";
+        output += "\n\nERROR: unable to write to variable scope!";
     }
-    if(result.type != values.types.ARRAY) {
-        return "Error: improper formatting";
-    }
-    switch(outputFormat) {
-        case "first-only":
-            return values.getString(values.breakVariable(result.val[0], translated, references));
-        case "last-only":
-            return values.getString(values.breakVariable(result.val[result.val.length - 1], translated, references));
-        case "all":
-            let output = "";
-            for(let i = 0; i < result.val.length; i++) {
-                const res = values.getString(values.breakVariable(result.val[i], translated, references));
-                if(res.length > 0) {
-                    output += `Expression ${i}: ${res}\n`;
-                } else {
-                    output += `No valid return value for expression ${i}`;
-                }
-            }
-            return output;
-        case "none":
-            return "Done!";
-        default:
-            return "Error: invalid output format!";
-    }
+    return output;
 }

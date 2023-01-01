@@ -31,14 +31,14 @@ class Parser {
         return new operators.Operator(operators.operatorTypes.ARRAY, expressions);
     }
 
-    parse(lowerfunction, cases) {
+    parse(lowerfunction, cases, type = TokenTypes.OPERATOR) {
         let current = this[lowerfunction]();
         let next = null;
         let done = false;
         while(!done) {
             next = this.next();
             done = true;
-            if(next.type == TokenTypes.OPERATOR) {
+            if(next.type == type) {
                 const result = this[cases](next.raw, current, lowerfunction);
                 if(result != null) {
                     current = result;
@@ -101,7 +101,20 @@ class Parser {
     }
 
     parseMultiples() {
-        return this.parse("parseLowest", "checkMultiples");
+        return this.parse("parseAccessors", "checkMultiples");
+    }
+
+    checkAccessors(raw, current, under) {
+        if(raw == "[") {
+            const returning = new operators.Operator(operators.operatorTypes.ACCESS, [current, this[under]()]);
+            this.requireSymbol("]");
+            return returning;
+        }
+        return null;
+    }
+
+    parseAccessors() {
+        return this.parse("parseLowest", "checkAccessors", TokenTypes.SYMBOL);
     }
 
     parseLowest() {
@@ -129,6 +142,10 @@ class Parser {
             if(value.raw == "delete") {
                 const next = this.next().raw;
                 return new operators.Operator(operators.operatorTypes.DELETE, next);
+            }
+            if(value.raw == "make") {
+                const next = this.next().raw;
+                return new operators.Operator(operators.operatorTypes.MAKE, next);
             }
             return new operators.Operator(operators.operatorTypes.REFERENCE, value.raw);
         }

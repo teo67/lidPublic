@@ -57,7 +57,7 @@ const getNextToken = (previousType, previousRaw, nextSymbol) => {
         case Token.QUOTE:
             return (previousType == TokenTypes.STRING) ? TokenTypes.SAME : TokenTypes.STRING;
         case Token.DOT:
-            return (previousType == TokenTypes.NUMBER || previousType == TokenTypes.OPERATOR) ? TokenTypes.SAME : TokenTypes.OPERATOR;
+            return (previousType == TokenTypes.NUMBER) ? TokenTypes.SAME : TokenTypes.SYMBOL;
     }
 }
 
@@ -65,7 +65,7 @@ class Lex {
     constructor(text) {
         this.text = text;
         this.index = 0;
-        this.over = false;
+        this.over = text.length == 0;
     }
     lex() {
         let current = "";
