@@ -10,7 +10,7 @@ const removeReference = (key, references, referenceData) => {
     if(references[key] !== undefined) {
         const ref = references[key];
         if(ref.usedBy == 0) {
-            for(const use of Object.keys(ref.uses)) {
+            for(const use in ref.uses) {
                 references[use].usedBy--;
                 removeReference(use, references, referenceData);
             }
@@ -39,7 +39,6 @@ module.exports = async (text, outputFormat) => {
         const expr = parser.parseExpressions();
         result = operators.operatorArray[expr.num](expr.args, translated, references, referenceData);
     } catch(e) {
-        //console.log(e);
         return `There was an error parsing your code: \n${e}`;
     }
     let output = "";
@@ -51,16 +50,18 @@ module.exports = async (text, outputFormat) => {
                 output = values.getString(result.val[0], translated, references);
                 break;
             case "last-only":
-                output = values.getString(result.val[result.val.length - 1], translated, references);
+                output = values.getString(result.val[Object.keys(result.val).length - 1], translated, references);
                 break;
             case "all":
-                for(let i = 0; i < result.val.length; i++) {
-                    const res = values.getString(result.val[i], translated, references);
+                let i = 0;
+                for(const vale in result.val) {
+                    const res = values.getString(result.val[vale], translated, references);
                     if(res.length > 0) {
                         output += `Expression ${i}: ${res}\n`;
                     } else {
                         output += `No valid return value for expression ${i}`;
                     }
+                    i++;
                 }
                 break;
             case "none":
@@ -70,7 +71,7 @@ module.exports = async (text, outputFormat) => {
                 output = "Error: invalid output format!";
         }
     }
-    for(const key of Object.keys(referenceData.edited)) {
+    for(const key in referenceData.edited) {
         console.log(`Checking reference ${key}...`);
         if(referenceData.edited[key]) {
             removeReference(key, references, referenceData);

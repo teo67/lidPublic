@@ -29,13 +29,16 @@ const getString = (val, scope, references) => {
             return value.val ? "true" : "false";
         case types.ARRAY:
             let returning = "[";
-            for(let i = 0; i < value.val.length; i++) {
-                returning += getString(value.val[i], scope, references);
-                if(i != value.val.length - 1) {
-                    returning += ", ";
+            let i = 0;
+            for(const key in value.val) {
+                if(key != `${i}`) {
+                    returning += `.${key} = `;
                 }
+                returning += getString(value.val[key], scope, references);
+                returning += ", ";
+                i++;
             }
-            return returning + "]";
+            return returning.substring(0, returning.length - 2) + "]";
         default:
             return "none";
     }
@@ -53,7 +56,7 @@ const getNumber = value => {
         case types.BOOLEAN:
             return value.val ? 1 : 0;
         case types.ARRAY:
-            throw "Unable to convert array to number!";
+            throw "Unable to convert object to number!";
         default:
             return 0;
     }
@@ -75,7 +78,7 @@ const getArray = value => {
     if(value.type == types.ARRAY) {
         return value.val;
     }
-    throw "Expecting an array!";
+    throw "Expecting an object!";
 }
 const breakReference = (value, reference) => {
     if(value.type == types.ARRAY_REFERENCE) {
@@ -99,10 +102,11 @@ const breakAccess = (value, reference) => {
             throw `Unable to access element ${value.val.num} of a non-array item!`;
         }
         arr = arr.val;
-        if(arr.length <= value.val.num) {
-            throw `The array being accessed only has ${arr.length} elements (required: ${value.val.num}).`;
+        const val = arr[value.val.num];
+        if(val === undefined) {
+            throw `The object being accessed does not have a key for '${value.val.num}'!`;
         }
-        return breakAccess(arr[value.val.num], reference);
+        return breakAccess(val, reference);
     }
     return value;
 }

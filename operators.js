@@ -44,8 +44,8 @@ const handleArray = (arr, references, referenceData) => {
         arr.val = refnum;
         if(arr.type == values.types.ARRAY) {
             arr.type = values.types.ARRAY_REFERENCE;
-            for(const item of previousValue) {
-                const refNo = handleArray(item, references, referenceData);
+            for(const item in previousValue) {
+                const refNo = handleArray(previousValue[item], references, referenceData);
                 if(refNo == -1) {
                     continue;
                 }
@@ -63,9 +63,11 @@ const handleArray = (arr, references, referenceData) => {
     return -1;
 }
 operatorArray[operatorTypes.ARRAY] = (args, scope, reference, referenceData) => {
-    const returning = [];
+    const returning = {};
+    let i = 0;
     for(const arg of args) {
-        returning.push(run(arg, scope, reference, referenceData));
+        returning[i] = run(arg, scope, reference, referenceData);
+        i++;
     }
     return new values.Value(values.types.ARRAY, returning);
 }
@@ -119,39 +121,46 @@ operatorArray[operatorTypes.REFERENCE] = args => {
 }
 operatorArray[operatorTypes.ASSIGNMENT] = (args, scope, reference, referenceData) => {
     const first = run(args[0], scope, reference, referenceData, false, false, false); // DO NOT BREAK VAR
-    // if(first.type != values.types.VARIABLE) {
-    //     throw "Expecting a variable on the left side of an assignment expression!";
-    // }
-    let previousContainer;
-    let previousSpecial;
+    if(first.type != values.types.VARIABLE && first.type != values.types.ARRAY_ACCESS) {
+        throw "Expecting a variable or property on the left side of an assignment expression!";
+    }
+    let previousContainer = null;
+    let usesHolder = null;
+    let val = null;
     if(first.type == values.types.VARIABLE) {
-        const con = scope.getContaining(first.val);
+        let con = scope.getContaining(first.val);
+        if(con === null) {
+            con = scope;
+        }
         previousContainer = con.variables;
-        previousSpecial = con.special;
+        usesHolder = con.special ? referenceData.baseUses: null;
+        val = first.val;
     } else {
-        previousContainer = first.val.arr;
-        previousSpecial = false;
+        if(first.val.arr.type == values.types.ARRAY_REFERENCE) {
+            previousContainer = reference[first.val.arr.val].val;
+            usesHolder = reference[first.val.arr.val].uses;
+        } else {
+            previousContainer = first.val.arr.val;
+        }
+        val = first.val.num;
     } 
     let res = run(args[1], scope, reference, referenceData, true, false);
-    if(previousContainer !== null) {
-        if(previousContainer.special) {
-            const previousValue = previousContainer.variables[first.val];
+    const previousValue = previousContainer[val];
+    if(previousValue !== undefined) {
+        if(usesHolder !== null) {
             if(previousValue.type == values.types.ARRAY_REFERENCE || previousValue.type == values.types.FUNCTION_REFERENCE) {
-                deleteOrSubtractOne(referenceData.baseUses, previousValue.val);
+                deleteOrSubtractOne(usesHolder, previousValue.val);
                 if(--reference[previousValue.val].usedBy == 0) {
                     referenceData.edited[previousValue.val] = true;
                 }
             }
         }
-        previousContainer.variables[first.val] = res;
-    } else {
-        scope.set(first.val, res);
-        previousContainer = scope;
     }
-    if(previousContainer.special) {
+    previousContainer[val] = res;
+    if(usesHolder !== null) {
         handleArray(res, reference, referenceData);
         if(res.type == values.types.ARRAY_REFERENCE || res.type == values.types.FUNCTION_REFERENCE) {
-            createOrAddOne(referenceData.baseUses, res.val);
+            createOrAddOne(usesHolder, res.val);
             reference[res.val].usedBy++;
             if(referenceData.edited[res.val]) {
                 delete referenceData.edited[res.val]; // only change from true to false
@@ -183,9 +192,9 @@ operatorArray[operatorTypes.ACCESS] = (args, scope, reference, referenceData) =>
     const first = run(args[0], scope, reference, referenceData, true, false);
     const second = run(args[1], scope, reference, referenceData);
     if(first.type != values.types.ARRAY && first.type != values.types.ARRAY_REFERENCE) {
-        throw `Expecting an array to access property via brackets!`;
+        throw `Expecting an object to access property via brackets!`;
     }
-    const secondNum = values.getNumber(second);
+    const secondNum = values.getString(second);
     return new values.Value(values.types.ARRAY_ACCESS, { arr: first, num: secondNum });
 }
 module.exports = {Operator, operatorArray, operatorTypes, MAIN_SCOPE};
