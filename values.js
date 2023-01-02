@@ -38,7 +38,10 @@ const getString = (val, scope, references) => {
                 returning += ", ";
                 i++;
             }
-            return returning.substring(0, returning.length - 2) + "]";
+            if(i > 0) {
+                returning = returning.substring(0, returning.length - 2);
+            }
+            return returning + "]";
         default:
             return "none";
     }
@@ -110,6 +113,9 @@ const breakAccess = (value, reference) => {
     }
     return value;
 }
+const equals = (a, b) => {
+    return a.type == b.type && (a.type == types.NONE ? true : a.val == b.val);
+}
 module.exports = {
-    Value, types, getString, getNumber, getBoolean, getArray, breakVariable, breakReference, breakAccess
+    Value, types, getString, getNumber, getBoolean, getArray, breakVariable, breakReference, breakAccess, equals
 };

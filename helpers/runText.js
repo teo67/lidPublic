@@ -36,9 +36,10 @@ module.exports = async (text, outputFormat) => {
     try {
         const lex = new Lex(text);
         const parser = new Parser(lex);
-        const expr = parser.parseExpressions();
+        const expr = parser.parseExpressions(false, null);
         result = operators.operatorArray[expr.num](expr.args, translated, references, referenceData);
     } catch(e) {
+        console.log(e);
         return `There was an error parsing your code: \n${e}`;
     }
     let output = "";
@@ -72,7 +73,7 @@ module.exports = async (text, outputFormat) => {
         }
     }
     for(const key in referenceData.edited) {
-        console.log(`Checking reference ${key}...`);
+        //console.log(`Checking reference ${key}...`);
         if(referenceData.edited[key]) {
             removeReference(key, references, referenceData);
         }

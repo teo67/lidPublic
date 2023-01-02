@@ -9,7 +9,7 @@ const tokens = {};
 const alphabet = "abcdefghijklmnopqrstuvwxyz";
 const numbers = "0123456789";
 const symbols = "()[]{},'";
-const operators = "+-*/=!|&";
+const operators = "+-*/=!|&<>%";
 const whitespace = " \t\n\r\xa0";
 const Token = {
     LETTER: 0, DIGIT: 1, SYMBOL: 2, OPERATOR: 3, WHITESPACE: 4, QUOTE: 5, DOT: 6

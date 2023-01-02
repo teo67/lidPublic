@@ -2,6 +2,7 @@ const values = require('./values.js');
 const createReference = require('./helpers/createReference.js');
 const createOrAddOne = require('./helpers/createOrAddOne.js');
 const deleteOrSubtractOne = require('./helpers/deleteOrSubtractOne.js');
+const Scope = require('./scope.js');
 class Operator {
     constructor(num, args) {
         this.num = num;
@@ -25,7 +26,18 @@ const operatorTypes = {
     ASSIGNMENT: 11,
     DELETE: 12,
     MAKE: 13,
-    ACCESS: 14
+    ACCESS: 14,
+    SCOPE: 15,
+    OBJECT: 16,
+    WHILE: 17,
+    EQUALS: 18, 
+    LESSTHAN: 19,
+    GREATERTHAN: 20, 
+    LESSTHANOREQUALS: 21,
+    GREATERTHANOREQUALS: 22,
+    NOTEQUALS: 23,
+    OPERATEASSIGN: 24,
+    VALUE: 25
 };
 const MAIN_SCOPE = -1;
 const run = (op, scope, reference, referenceData, breakvar = true, breakref = true, breakaccess = true) => {
@@ -62,6 +74,58 @@ const handleArray = (arr, references, referenceData) => {
     }
     return -1;
 }
+const assign = (first, second, scope, reference, referenceData, givenScope = null) => {
+    if(first.type != values.types.VARIABLE && first.type != values.types.ARRAY_ACCESS) {
+        throw "Expecting a variable or property on the left side of an assignment expression!";
+    }
+    let previousContainer = null;
+    let usesHolder = null;
+    let val = null;
+    if(first.type == values.types.VARIABLE) {
+        let con = givenScope;
+        if(con === null) {
+            con = scope.getContaining(first.val);
+        }
+        if(con === null) {
+            con = scope;
+        }
+        previousContainer = con.variables;
+        usesHolder = con.special ? referenceData.baseUses: null;
+        val = first.val;
+    } else {
+        if(first.val.arr.type == values.types.ARRAY_REFERENCE) {
+            previousContainer = reference[first.val.arr.val].val;
+            usesHolder = reference[first.val.arr.val].uses;
+        } else {
+            previousContainer = first.val.arr.val;
+        }
+        val = first.val.num;
+    } 
+    let res = run(second, scope, reference, referenceData, true, false);
+    const previousValue = previousContainer[val];
+    if(previousValue !== undefined) {
+        if(usesHolder !== null) {
+            if(previousValue.type == values.types.ARRAY_REFERENCE || previousValue.type == values.types.FUNCTION_REFERENCE) {
+                deleteOrSubtractOne(usesHolder, previousValue.val);
+                if(--reference[previousValue.val].usedBy == 0) {
+                    referenceData.edited[previousValue.val] = true;
+                }
+            }
+        }
+    }
+    previousContainer[val] = res;
+    if(usesHolder !== null) {
+        handleArray(res, reference, referenceData);
+        if(res.type == values.types.ARRAY_REFERENCE || res.type == values.types.FUNCTION_REFERENCE) {
+            createOrAddOne(usesHolder, res.val);
+            reference[res.val].usedBy++;
+            if(referenceData.edited[res.val]) {
+                delete referenceData.edited[res.val]; // only change from true to false
+            }
+        }
+    }
+    return first;
+}
 operatorArray[operatorTypes.ARRAY] = (args, scope, reference, referenceData) => {
     const returning = {};
     let i = 0;
@@ -70,6 +134,12 @@ operatorArray[operatorTypes.ARRAY] = (args, scope, reference, referenceData) => 
         i++;
     }
     return new values.Value(values.types.ARRAY, returning);
+}
+operatorArray[operatorTypes.SCOPE] = (args, scope, reference, referenceData) => {
+    for(let i = 0; i < args.length - 1; i++) {
+        run(args[i], scope, reference, referenceData);
+    }
+    return args.length == 0 ? new values.Value(values.types.NONE, null) : run(args[args.length - 1], scope, reference, referenceData);
 }
 operatorArray[operatorTypes.ADD] = (args, scope, reference, referenceData) => {
     const a = run(args[0], scope, reference, referenceData);
@@ -120,54 +190,14 @@ operatorArray[operatorTypes.REFERENCE] = args => {
     return new values.Value(values.types.VARIABLE, args); // should be of type value
 }
 operatorArray[operatorTypes.ASSIGNMENT] = (args, scope, reference, referenceData) => {
-    const first = run(args[0], scope, reference, referenceData, false, false, false); // DO NOT BREAK VAR
-    if(first.type != values.types.VARIABLE && first.type != values.types.ARRAY_ACCESS) {
-        throw "Expecting a variable or property on the left side of an assignment expression!";
-    }
-    let previousContainer = null;
-    let usesHolder = null;
-    let val = null;
-    if(first.type == values.types.VARIABLE) {
-        let con = scope.getContaining(first.val);
-        if(con === null) {
-            con = scope;
-        }
-        previousContainer = con.variables;
-        usesHolder = con.special ? referenceData.baseUses: null;
-        val = first.val;
-    } else {
-        if(first.val.arr.type == values.types.ARRAY_REFERENCE) {
-            previousContainer = reference[first.val.arr.val].val;
-            usesHolder = reference[first.val.arr.val].uses;
-        } else {
-            previousContainer = first.val.arr.val;
-        }
-        val = first.val.num;
-    } 
-    let res = run(args[1], scope, reference, referenceData, true, false);
-    const previousValue = previousContainer[val];
-    if(previousValue !== undefined) {
-        if(usesHolder !== null) {
-            if(previousValue.type == values.types.ARRAY_REFERENCE || previousValue.type == values.types.FUNCTION_REFERENCE) {
-                deleteOrSubtractOne(usesHolder, previousValue.val);
-                if(--reference[previousValue.val].usedBy == 0) {
-                    referenceData.edited[previousValue.val] = true;
-                }
-            }
-        }
-    }
-    previousContainer[val] = res;
-    if(usesHolder !== null) {
-        handleArray(res, reference, referenceData);
-        if(res.type == values.types.ARRAY_REFERENCE || res.type == values.types.FUNCTION_REFERENCE) {
-            createOrAddOne(usesHolder, res.val);
-            reference[res.val].usedBy++;
-            if(referenceData.edited[res.val]) {
-                delete referenceData.edited[res.val]; // only change from true to false
-            }
-        }
-    }
-    return first;
+    const first = run(args[0], scope, reference, referenceData, false, false, false);
+    return assign(first, args[1], scope, reference, referenceData);
+}
+operatorArray[operatorTypes.OPERATEASSIGN] = (args, scope, reference, referenceData) => {
+    const first = run(args[0], scope, reference, referenceData, false, false, false);
+    const container = first.type == values.types.VARIABLE ? scope.getContaining(first) : null; // so we don't have to find the variable twice
+    const value = container === null ? first : container.variables[first.val];
+    return assign(first, new Operator(args[1], [new Operator(operatorTypes.VALUE, value), args[2]]), scope, reference, referenceData, container);
 }
 operatorArray[operatorTypes.DELETE] = (args, scope, reference, referenceData) => {
     const container = scope.getContaining(args);
@@ -196,5 +226,41 @@ operatorArray[operatorTypes.ACCESS] = (args, scope, reference, referenceData) =>
     }
     const secondNum = values.getString(second);
     return new values.Value(values.types.ARRAY_ACCESS, { arr: first, num: secondNum });
+}
+operatorArray[operatorTypes.OBJECT] = (args, scope, reference, referenceData) => {
+    const obj = new values.Value(values.types.ARRAY, {});
+    const _scope = new Scope(scope, obj.val, false);
+    run(args, _scope, reference, referenceData);
+    return obj;
+}
+operatorArray[operatorTypes.WHILE] = (args, scope, reference, referenceData) => {
+    const returning = {};
+    let i = 0;
+    while(values.getBoolean(run(args[0], scope, reference, referenceData))) {
+        returning[i] = run(args[1], scope, reference, referenceData);
+        i++;
+    }
+    return new values.Value(values.types.ARRAY, returning);
+}
+operatorArray[operatorTypes.EQUALS] = (args, scope, reference, referenceData) => {
+    return new values.Value(values.types.BOOLEAN, values.equals(run(args[0], scope, reference, referenceData), run(args[1], scope, reference, referenceData)));
+}
+operatorArray[operatorTypes.NOTEQUALS] = (args, scope, reference, referenceData) => {
+    return new values.Value(values.types.BOOLEAN, !values.equals(run(args[0], scope, reference, referenceData), run(args[1], scope, reference, referenceData)));
+}
+operatorArray[operatorTypes.LESSTHAN] = (args, scope, reference, referenceData) => {
+    return new values.Value(values.types.BOOLEAN, values.getNumber(run(args[0], scope, reference, referenceData)) < values.getNumber(run(args[1], scope, reference, referenceData)));
+}
+operatorArray[operatorTypes.GREATERTHAN] = (args, scope, reference, referenceData) => {
+    return new values.Value(values.types.BOOLEAN, values.getNumber(run(args[0], scope, reference, referenceData)) > values.getNumber(run(args[1], scope, reference, referenceData)));
+}
+operatorArray[operatorTypes.LESSTHANOREQUALS] = (args, scope, reference, referenceData) => {
+    return new values.Value(values.types.BOOLEAN, values.getNumber(run(args[0], scope, reference, referenceData)) <= values.getNumber(run(args[1], scope, reference, referenceData)));
+}
+operatorArray[operatorTypes.GREATERTHANOREQUALS] = (args, scope, reference, referenceData) => {
+    return new values.Value(values.types.BOOLEAN, values.getNumber(run(args[0], scope, reference, referenceData)) >= values.getNumber(run(args[1], scope, reference, referenceData)));
+}
+operatorArray[operatorTypes.VALUE] = args => {
+    return args;
 }
 module.exports = {Operator, operatorArray, operatorTypes, MAIN_SCOPE};
