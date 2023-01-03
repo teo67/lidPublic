@@ -39,7 +39,7 @@ module.exports = async (text, outputFormat) => {
         const expr = parser.parseExpressions(false, null);
         result = operators.operatorArray[expr.num](expr.args, translated, references, referenceData);
     } catch(e) {
-        console.log(e);
+        //console.log(e);
         return `There was an error parsing your code: \n${e}`;
     }
     let output = "";

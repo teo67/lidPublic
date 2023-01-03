@@ -1,8 +1,9 @@
 {
   "next": 2,
   "stack": [
-    1,
-    0
+    1
   ],
-  "baseUses": {}
+  "baseUses": {
+    "0": 1
+  }
 }

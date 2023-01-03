@@ -42,6 +42,8 @@ const getString = (val, scope, references) => {
                 returning = returning.substring(0, returning.length - 2);
             }
             return returning + "]";
+        case types.FUNCTION:
+            return "(Function)";
         default:
             return "none";
     }
@@ -60,6 +62,8 @@ const getNumber = value => {
             return value.val ? 1 : 0;
         case types.ARRAY:
             throw "Unable to convert object to number!";
+        case types.FUNCTION:
+            throw "Unable to convert function to number!";
         default:
             return 0;
     }
@@ -70,6 +74,7 @@ const getBoolean = value => {
             return value.val != 0.0;
         case types.STRING:
         case types.ARRAY:
+        case types.FUNCTION:
             return true;
         case types.BOOLEAN:
             return value.val;

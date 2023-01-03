@@ -1,6 +1,6 @@
 {
-  "a": {
-    "type": 2,
-    "val": false
+  "factorial": {
+    "type": 8,
+    "val": 0
   }
 }

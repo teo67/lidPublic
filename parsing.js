@@ -1,5 +1,31 @@
 const operators = require('./operators.js');
 const TokenTypes = require('./lex.js').TokenTypes;
+const basicOperations = [
+    {
+        "&&": operators.operatorTypes.AND,
+        "||": operators.operatorTypes.OR
+    },
+    {
+        "==": operators.operatorTypes.EQUALS, 
+        "<": operators.operatorTypes.LESSTHAN,
+        ">": operators.operatorTypes.GREATERTHAN, 
+        "<=": operators.operatorTypes.LESSTHANOREQUALS,
+        ">=": operators.operatorTypes.GREATERTHANOREQUALS,
+        "!=": operators.operatorTypes.NOTEQUALS
+    },
+    {
+        "+": operators.operatorTypes.ADD, 
+        "-": operators.operatorTypes.SUBTRACT,
+    },
+    {
+        "*": operators.operatorTypes.MULTIPLY,
+        "/": operators.operatorTypes.DIVIDE,
+        "%": operators.operatorTypes.MODULO
+    },
+    {
+        "**": operators.operatorTypes.EXPONENT
+    }
+];
 class Parser {
     constructor(lex) {
         this.lexer = lex;
@@ -44,16 +70,27 @@ class Parser {
         return new operators.Operator(scope ? operators.operatorTypes.SCOPE : operators.operatorTypes.ARRAY, expressions);
     }
 
-    parse(lowerfunction, cases, type = TokenTypes.OPERATOR) {
-        let current = this[lowerfunction]();
+    parse(i = 0, lowerfunction = null, cases = null, type = TokenTypes.OPERATOR) {
+        if(i >= basicOperations.length && lowerfunction === null) {
+            return this.parsePre();
+        }
+        let current = lowerfunction === null ? this.parse(i + 1) : this[lowerfunction]();
         let next = null;
         let done = false;
         while(!done) {
             next = this.next();
             done = true;
             if(next.type == type) {
-                const result = this[cases](next.raw, current, lowerfunction);
-                if(result != null) {
+                let result = null;
+                if(lowerfunction === null) {
+                    const typ = basicOperations[i][next.raw];
+                    if(typ !== undefined) {
+                        result = new operators.Operator(typ, [current, this.parse(i + 1)]);
+                    }
+                } else {
+                    result = this[cases](next.raw, current, lowerfunction);
+                }
+                if(result !== null) {
                     current = result;
                     done = false;
                 }
@@ -63,19 +100,26 @@ class Parser {
         return current;
     }
 
-    parseList(endsymbol = "]") {
+    parseList(endsymbol = "]", maxlen = -1, isfun = false) {
         let returning = [];
         let next = this.next();
         while(next.type != TokenTypes.SYMBOL || next.raw != endsymbol) {
             if(next.type != TokenTypes.SYMBOL || next.raw != ",") {
-                this.stored = next;
-                const adding = this.parseAssignment();
-                returning.push(adding);
+                if(isfun) {
+                    returning.push(next.raw);
+                } else {
+                    this.stored = next;
+                    const adding = this.parseAssignment();
+                    returning.push(adding);
+                }
             }
             next = this.next();
+            if(returning.length == maxlen) {
+                break;
+            }
         }
         this.stored = next;
-        return new operators.Operator(operators.operatorTypes.ARRAY, returning);
+        return returning;
     }
 
     checkAssignment(raw, current, under) {
@@ -84,70 +128,57 @@ class Parser {
                 return new operators.Operator(operators.operatorTypes.ASSIGNMENT, [current, this[under]()]);
             }
             const prev = raw.substring(0, raw.length - 1);
-            const checkers = ["checkMultiples", "checkSums", "checkComparators"];
-            let result = null;
+            let result = undefined;
             let i = 0;
-            while(result == null) {
-                result = this[checkers[i]](prev, null, under);
+            while(result === undefined) {
+                result = basicOperations[i][prev];
                 i++;
             }
-            if(result != null) {
-                return new operators.Operator(operators.operatorTypes.OPERATEASSIGN, [current, result.num, result.args[1]]);
+            if(result !== undefined) {
+                return new operators.Operator(operators.operatorTypes.OPERATEASSIGN, [current, result, this[under]()]);
             }
         }
         return null;
     }
 
     parseAssignment() {
-        return this.parse("parseComparators", "checkAssignment");
+        return this.parse(-1, "parse", "checkAssignment");
     }
 
-    checkComparators(raw, current, under) {
-        const key = {
-            "==": operators.operatorTypes.EQUALS, 
-            "<": operators.operatorTypes.LESSTHAN,
-            ">": operators.operatorTypes.GREATERTHAN, 
-            "<=": operators.operatorTypes.LESSTHANOREQUALS,
-            ">=": operators.operatorTypes.GREATERTHANOREQUALS,
-            "!=": operators.operatorTypes.NOTEQUALS
-        };
-        const type = key[raw];
-        if(type === undefined) {
-            return null;
+    parsePre() {
+        let next = this.next();
+        if(next.type == TokenTypes.OPERATOR) {
+            if(next.raw == "!") {
+                return new operators.Operator(operators.operatorTypes.NOT, this.parsePre());
+            }
+            if(next.raw == "-") {
+                return new operators.Operator(operators.operatorTypes.NEGATIVE, this.parsePre());
+            }
         }
-        return new operators.Operator(type, [current, this[under]()]);
+        this.stored = next;
+        return this.parsePost();
     }
 
-    parseComparators() {
-        return this.parse("parseSums", "checkComparators");
-    }
-
-    checkSums(raw, current, under) {
-        if(raw == "+") {
-            return new operators.Operator(operators.operatorTypes.ADD, [current, this[under]()]);
+    parsePost() {
+        let current = this.parse(-1, "parseLowest", "checkAccessors", TokenTypes.SYMBOL);
+        let next = null;
+        let done = false;
+        while(!done) {
+            next = this.next();
+            if(next.type == TokenTypes.OPERATOR) {
+                if(next.raw == "++") {
+                    current = new operators.Operator(operators.operatorTypes.POSTADD, current);
+                    continue;
+                }
+                if(next.raw == "--") {
+                    current = new operators.Operator(operators.operatorTypes.POSTSUBTRACT, current);
+                    continue;
+                }
+            }
+            done = true;
         }
-        if(raw == "-") {
-            return new operators.Operator(operators.operatorTypes.SUBTRACT, [current, this[under]()]);
-        }
-        return null;
-    }
-
-    parseSums() {
-        return this.parse("parseMultiples", "checkSums");
-    }
-
-    checkMultiples(raw, current, under) {
-        if(raw == "*") {
-            return new operators.Operator(operators.operatorTypes.MULTIPLY, [current, this[under]()]);
-        }
-        if(raw == "/") {
-            return new operators.Operator(operators.operatorTypes.DIVIDE, [current, this[under]()]);
-        }
-        return null;
-    }
-
-    parseMultiples() {
-        return this.parse("parseAccessors", "checkMultiples");
+        this.stored = next;
+        return current;
     }
 
     checkAccessors(raw, current, under) {
@@ -156,11 +187,53 @@ class Parser {
             this.requireSymbol("]");
             return returning;
         }
+        if(raw == ".") {
+            return new operators.Operator(operators.operatorTypes.DOTACCESS, [current, this.next().raw]);
+        }
+        if(raw == "(") {
+            const li = this.parseList(")");
+            const returning = new operators.Operator(operators.operatorTypes.FUNCTIONCALL, [current, li]);
+            this.requireSymbol(")");
+            return returning;
+        }
         return null;
     }
 
-    parseAccessors() {
-        return this.parse("parseLowest", "checkAccessors", TokenTypes.SYMBOL);
+    parseScope() {
+        const didOpen2 = this.optionalSymbol("{");
+        const scope = didOpen2 ? this.parseExpressions() : this.parseAssignment();
+        if(didOpen2) {
+            this.requireSymbol("}");
+        }
+        return scope;
+    }
+
+    parseScopedExpression(num) {
+        const condition1 = this.parseAssignment();
+        return new operators.Operator(num, [condition1, this.parseScope()]);
+    }
+
+    parseIfs() {
+        const original = this.parseScopedExpression(operators.operatorTypes.IF);
+        const next = this.next();
+        if(next.type == TokenTypes.KEYWORD && next.raw == "else") {
+            const bracket = this.optionalSymbol("{");
+            if(bracket) {
+                original.args.push(this.parseExpressions());
+                this.requireSymbol("}");
+            } else {
+                const after = this.next();
+                if(after.type == TokenTypes.KEYWORD && after.raw == "if") {
+                    original.args.push(this.parseIfs());
+                } else {
+                    this.stored = after;
+                    original.args.push(this.parseAssignment());
+                }
+            }
+        } else {
+            this.stored = next;
+        }
+        return original;
     }
 
     parseLowest() {
@@ -192,17 +265,17 @@ class Parser {
                     const next = this.next().raw;
                     return new operators.Operator(operators.operatorTypes.MAKE, next);
                 case "while":
+                    return this.parseScopedExpression(operators.operatorTypes.WHILE);
+                case "if":
+                    return this.parseIfs();
+                case "for":
                     const didOpen1 = this.optionalSymbol("(");
-                    const condition1 = this.parseAssignment();
+                    const li = this.parseList(didOpen1 ? ")" : null, 3);
                     if(didOpen1) {
                         this.requireSymbol(")");
                     }
-                    const didOpen2 = this.optionalSymbol("{");
-                    const scope = didOpen2 ? this.parseExpressions() : this.parseAssignment();
-                    if(didOpen2) {
-                        this.requireSymbol("}");
-                    }
-                    return new operators.Operator(operators.operatorTypes.WHILE, [condition1, scope]);
+                    const sco = this.parseScope();
+                    return new operators.Operator(operators.operatorTypes.FOR, [li, sco]);
                 default:
                     return new operators.Operator(operators.operatorTypes.REFERENCE, value.raw);
             }
@@ -216,12 +289,18 @@ class Parser {
             if(value.raw == "[") {
                 const res = this.parseList();
                 this.requireSymbol("]");
-                return res;
+                return new operators.Operator(operators.operatorTypes.ARRAY, res);
             }
             if(value.raw == "{") {
                 const scope = this.parseExpressions();
                 this.requireSymbol("}");
                 return new operators.Operator(operators.operatorTypes.OBJECT, scope);
+            }
+            if(value.raw == "#") {
+                const li = this.parseList("#", -1, true);
+                this.requireSymbol("#");
+                const sco = this.parseScope();
+                return new operators.Operator(operators.operatorTypes.FUNCTION, [li, sco]);
             }
         }
         throw `Unexpected token: ${value.raw}`;

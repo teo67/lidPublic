@@ -11,7 +11,8 @@ class Operator {
         }
     }
 }
-const operatorArray = [];
+const operatorArray = {};
+const basicOperatorArray = {};
 const operatorTypes = {
     ARRAY: 0,
     ADD: 1, 
@@ -37,14 +38,31 @@ const operatorTypes = {
     GREATERTHANOREQUALS: 22,
     NOTEQUALS: 23,
     OPERATEASSIGN: 24,
-    VALUE: 25
+    IF: 25,
+    FOR: 26,
+    AND: 27,
+    OR: 28,
+    POSTADD: 29,
+    POSTSUBTRACT: 30,
+    NOT: 31,
+    NEGATIVE: 32,
+    MODULO: 33,
+    EXPONENT: 34,
+    DOTACCESS: 35,
+    FUNCTION: 36,
+    FUNCTIONCALL: 37
 };
-const MAIN_SCOPE = -1;
 const run = (op, scope, reference, referenceData, breakvar = true, breakref = true, breakaccess = true) => {
     const res = operatorArray[op.num](op.args, scope, reference, referenceData);
     const returning = breakvar ? values.breakVariable(res, scope) : res;
-    const returning2 = breakref ? values.breakReference(returning, reference) : returning;
-    return breakaccess ? values.breakAccess(returning2, reference) : returning2;
+    const returning2 = breakaccess ? values.breakAccess(returning, reference) : returning;
+    return breakref ? values.breakReference(returning2, reference) : returning2;
+}
+const addToBasicOperatorArray = (num, func) => {
+    basicOperatorArray[num] = func;
+    operatorArray[num] = (args, scope, reference, referenceData) => {
+        return basicOperatorArray[num](run(args[0], scope, reference, referenceData), args[1], scope, reference, referenceData);
+    }
 }
 const handleArray = (arr, references, referenceData) => {
     if(arr.type == values.types.ARRAY_REFERENCE || arr.type == values.types.FUNCTION_REFERENCE) {
@@ -74,7 +92,7 @@ const handleArray = (arr, references, referenceData) => {
     }
     return -1;
 }
-const assign = (first, second, scope, reference, referenceData, givenScope = null) => {
+const assign = (first, res, scope, reference, referenceData, givenScope = null) => {
     if(first.type != values.types.VARIABLE && first.type != values.types.ARRAY_ACCESS) {
         throw "Expecting a variable or property on the left side of an assignment expression!";
     }
@@ -100,8 +118,7 @@ const assign = (first, second, scope, reference, referenceData, givenScope = nul
             previousContainer = first.val.arr.val;
         }
         val = first.val.num;
-    } 
-    let res = run(second, scope, reference, referenceData, true, false);
+    }
     const previousValue = previousContainer[val];
     if(previousValue !== undefined) {
         if(usesHolder !== null) {
@@ -141,26 +158,23 @@ operatorArray[operatorTypes.SCOPE] = (args, scope, reference, referenceData) => 
     }
     return args.length == 0 ? new values.Value(values.types.NONE, null) : run(args[args.length - 1], scope, reference, referenceData);
 }
-operatorArray[operatorTypes.ADD] = (args, scope, reference, referenceData) => {
-    const a = run(args[0], scope, reference, referenceData);
-    const b = run(args[1], scope, reference, referenceData);
+addToBasicOperatorArray(operatorTypes.ADD, (a, _b, scope, reference, referenceData) => {
+    const b = run(_b, scope, reference, referenceData);
     if(a.type == values.types.STRING) {
         return new values.Value(values.types.STRING, values.getString(a, scope, reference) + values.getString(b, scope, reference));
     }
     return new values.Value(values.types.NUMBER, values.getNumber(a) + values.getNumber(b));
-}
-operatorArray[operatorTypes.SUBTRACT] = (args, scope, reference, referenceData) => {
-    const a = run(args[0], scope, reference, referenceData);
-    const b = run(args[1], scope, reference, referenceData);
+});
+addToBasicOperatorArray(operatorTypes.SUBTRACT, (a, _b, scope, reference, referenceData) => {
+    const b = run(_b, scope, reference, referenceData);
     if(a.type == values.types.STRING) {
         const str = values.getString(a, scope, reference);
         return new values.Value(values.types.STRING, str.substring(0, str.length - values.getNumber(b)));
     }
     return new values.Value(values.types.NUMBER, values.getNumber(a) - values.getNumber(b));
-}
-operatorArray[operatorTypes.MULTIPLY] = (args, scope, reference, referenceData) => {
-    const a = run(args[0], scope, reference, referenceData);
-    const b = run(args[1], scope, reference, referenceData);
+});
+addToBasicOperatorArray(operatorTypes.MULTIPLY, (a, _b, scope, reference, referenceData) => {
+    const b = run(_b, scope, reference, referenceData);
     if(a.type == values.types.STRING) {
         return new values.Value(values.types.STRING, values.getString(a, scope, reference).repeat(values.getNumber(b)));
     }
@@ -168,12 +182,19 @@ operatorArray[operatorTypes.MULTIPLY] = (args, scope, reference, referenceData) 
         return new values.Value(values.types.STRING, values.getString(b, scope, reference).repeat(values.getNumber(a)));
     }
     return new values.Value(values.types.NUMBER, values.getNumber(a) * values.getNumber(b));
-}
-operatorArray[operatorTypes.DIVIDE] = (args, scope, reference, referenceData) => {
-    const a = run(args[0], scope, reference, referenceData);
-    const b = run(args[1], scope, reference, referenceData);
+});
+addToBasicOperatorArray(operatorTypes.DIVIDE, (a, _b, scope, reference, referenceData) => {
+    const b = run(_b, scope, reference, referenceData);
     return new values.Value(values.types.NUMBER, values.getNumber(a) / values.getNumber(b));
-}
+});
+addToBasicOperatorArray(operatorTypes.MODULO, (a, _b, scope, reference, referenceData) => {
+    const b = run(_b, scope, reference, referenceData);
+    return new values.Value(values.types.NUMBER, values.getNumber(a) % values.getNumber(b));
+});
+addToBasicOperatorArray(operatorTypes.EXPONENT, (a, _b, scope, reference, referenceData) => {
+    const b = run(_b, scope, reference, referenceData);
+    return new values.Value(values.types.NUMBER, values.getNumber(a) ** values.getNumber(b));
+});
 operatorArray[operatorTypes.NUMBER] = args => {
     return new values.Value(values.types.NUMBER, args);
 }
@@ -191,13 +212,41 @@ operatorArray[operatorTypes.REFERENCE] = args => {
 }
 operatorArray[operatorTypes.ASSIGNMENT] = (args, scope, reference, referenceData) => {
     const first = run(args[0], scope, reference, referenceData, false, false, false);
-    return assign(first, args[1], scope, reference, referenceData);
+    const second = run(args[1], scope, reference, referenceData, true, false);
+    return assign(first, second, scope, reference, referenceData);
+}
+const breakVarWithScope = (first, scope, reference) => {
+    let value = first;
+    let givenScope = null;
+    if(first.type == values.types.VARIABLE) { // basically break variable manually
+        givenScope = scope.getContaining(first.val);
+        if(givenScope === null) {
+            throw `The variable ${first.val} does not exist!`;
+        }
+        value = givenScope.variables[first.val];
+    }
+    value = values.breakReference(values.breakAccess(value, reference), reference);
+    return [value, givenScope];
 }
 operatorArray[operatorTypes.OPERATEASSIGN] = (args, scope, reference, referenceData) => {
     const first = run(args[0], scope, reference, referenceData, false, false, false);
-    const container = first.type == values.types.VARIABLE ? scope.getContaining(first) : null; // so we don't have to find the variable twice
-    const value = container === null ? first : container.variables[first.val];
-    return assign(first, new Operator(args[1], [new Operator(operatorTypes.VALUE, value), args[2]]), scope, reference, referenceData, container);
+    let value, givenScope = breakVarWithScope(first, scope, reference);
+    value = basicOperatorArray[args[1]](value, args[2], scope, reference);
+    return assign(first, value, scope, reference, referenceData, givenScope);
+}
+operatorArray[operatorTypes.POSTADD] = (args, scope, reference, referenceData) => {
+    const first = run(args, scope, reference, referenceData, false, false, false);
+    let [value, givenScope] = breakVarWithScope(first, scope, reference);
+    const oldNumber = values.getNumber(value);
+    value = new values.Value(values.types.NUMBER, oldNumber + 1);
+    return assign(first, value, scope, reference, referenceData, givenScope);
+}
+operatorArray[operatorTypes.POSTSUBTRACT] = (args, scope, reference, referenceData) => {
+    const first = run(args, scope, reference, referenceData, false, false, false);
+    let [value, givenScope] = breakVarWithScope(first, scope, reference);
+    const oldNumber = values.getNumber(value);
+    value = new values.Value(values.types.NUMBER, oldNumber - 1);
+    return assign(first, value, scope, reference, referenceData, givenScope);
 }
 operatorArray[operatorTypes.DELETE] = (args, scope, reference, referenceData) => {
     const container = scope.getContaining(args);
@@ -227,6 +276,13 @@ operatorArray[operatorTypes.ACCESS] = (args, scope, reference, referenceData) =>
     const secondNum = values.getString(second);
     return new values.Value(values.types.ARRAY_ACCESS, { arr: first, num: secondNum });
 }
+operatorArray[operatorTypes.DOTACCESS] = (args, scope, reference, referenceData) => {
+    const first = run(args[0], scope, reference, referenceData, true, false);
+    if(first.type != values.types.ARRAY && first.type != values.types.ARRAY_REFERENCE) {
+        throw `Expecting an object to access property via dotting!`;
+    }
+    return new values.Value(values.types.ARRAY_ACCESS, { arr: first, num: args[1] });
+}
 operatorArray[operatorTypes.OBJECT] = (args, scope, reference, referenceData) => {
     const obj = new values.Value(values.types.ARRAY, {});
     const _scope = new Scope(scope, obj.val, false);
@@ -237,30 +293,102 @@ operatorArray[operatorTypes.WHILE] = (args, scope, reference, referenceData) => 
     const returning = {};
     let i = 0;
     while(values.getBoolean(run(args[0], scope, reference, referenceData))) {
-        returning[i] = run(args[1], scope, reference, referenceData);
+        returning[i] = run(args[1], new Scope(scope), reference, referenceData);
         i++;
     }
     return new values.Value(values.types.ARRAY, returning);
 }
-operatorArray[operatorTypes.EQUALS] = (args, scope, reference, referenceData) => {
-    return new values.Value(values.types.BOOLEAN, values.equals(run(args[0], scope, reference, referenceData), run(args[1], scope, reference, referenceData)));
+addToBasicOperatorArray(operatorTypes.EQUALS, (a, _b, scope, reference, referenceData) => {
+    const b = run(_b, scope, reference, referenceData);
+    return new values.Value(values.types.BOOLEAN, values.equals(a, b));
+});
+addToBasicOperatorArray(operatorTypes.NOTEQUALS, (a, _b, scope, reference, referenceData) => {
+    const b = run(_b, scope, reference, referenceData);
+    return new values.Value(values.types.BOOLEAN, !values.equals(a, b));
+});
+addToBasicOperatorArray(operatorTypes.LESSTHAN, (a, _b, scope, reference, referenceData) => {
+    const b = run(_b, scope, reference, referenceData);
+    return new values.Value(values.types.BOOLEAN, values.getNumber(a) < values.getNumber(b));
+});
+addToBasicOperatorArray(operatorTypes.GREATERTHAN, (a, _b, scope, reference, referenceData) => {
+    const b = run(_b, scope, reference, referenceData);
+    return new values.Value(values.types.BOOLEAN, values.getNumber(a) > values.getNumber(b));
+});
+addToBasicOperatorArray(operatorTypes.LESSTHANOREQUALS, (a, _b, scope, reference, referenceData) => {
+    const b = run(_b, scope, reference, referenceData);
+    return new values.Value(values.types.BOOLEAN, values.getNumber(a) <= values.getNumber(b));
+});
+addToBasicOperatorArray(operatorTypes.GREATERTHANOREQUALS, (a, _b, scope, reference, referenceData) => {
+    const b = run(_b, scope, reference, referenceData);
+    return new values.Value(values.types.BOOLEAN, values.getNumber(a) >= values.getNumber(b));
+});
+addToBasicOperatorArray(operatorTypes.AND, (a, _b, scope, reference, referenceData) => {
+    if(!values.getBoolean(a)) {
+        return a;
+    }
+    return run(_b, scope, reference, referenceData);
+});
+addToBasicOperatorArray(operatorTypes.OR, (a, _b, scope, reference, referenceData) => {
+    if(values.getBoolean(a)) {
+        return a;
+    }
+    return run(_b, scope, reference, referenceData);
+});
+operatorArray[operatorTypes.IF] = (args, scope, reference, referenceData) => {
+    if(values.getBoolean(run(args[0], scope, reference, referenceData))) {
+        return run(args[1], new Scope(scope), reference, referenceData);
+    }
+    if(args.length > 2) {
+        return run(args[2], scope, reference, referenceData);
+    }
+    return new values.Value(values.types.NONE, null);
 }
-operatorArray[operatorTypes.NOTEQUALS] = (args, scope, reference, referenceData) => {
-    return new values.Value(values.types.BOOLEAN, !values.equals(run(args[0], scope, reference, referenceData), run(args[1], scope, reference, referenceData)));
+operatorArray[operatorTypes.FOR] = (args, scope, reference, referenceData) => {
+    const outerScope = new Scope(scope);
+    const returning = {};
+    let i = 0;
+    if(args[0].length > 0) {
+        run(args[0][0], outerScope, reference, referenceData);
+    }
+    if(args[0].length > 1) {
+        while(values.getBoolean(run(args[0][1], outerScope, reference, referenceData))) {
+            const innerScope = new Scope(outerScope);
+            returning[i] = run(args[1], innerScope, reference, referenceData);
+            i++;
+            if(args[0].length > 2) {
+                run(args[0][2], outerScope, reference, referenceData);
+            }
+        }
+    }
+    return new values.Value(values.types.ARRAY, returning);
 }
-operatorArray[operatorTypes.LESSTHAN] = (args, scope, reference, referenceData) => {
-    return new values.Value(values.types.BOOLEAN, values.getNumber(run(args[0], scope, reference, referenceData)) < values.getNumber(run(args[1], scope, reference, referenceData)));
+operatorArray[operatorTypes.NOT] = (args, scope, reference, referenceData) => {
+    const a = run(args, scope, reference, referenceData);
+    return new values.Value(values.types.BOOLEAN, !values.getBoolean(a));
 }
-operatorArray[operatorTypes.GREATERTHAN] = (args, scope, reference, referenceData) => {
-    return new values.Value(values.types.BOOLEAN, values.getNumber(run(args[0], scope, reference, referenceData)) > values.getNumber(run(args[1], scope, reference, referenceData)));
+operatorArray[operatorTypes.NEGATIVE] = (args, scope, reference, referenceData) => {
+    const a = run(args, scope, reference, referenceData);
+    return new values.Value(values.types.NUMBER, -values.getNumber(a));
 }
-operatorArray[operatorTypes.LESSTHANOREQUALS] = (args, scope, reference, referenceData) => {
-    return new values.Value(values.types.BOOLEAN, values.getNumber(run(args[0], scope, reference, referenceData)) <= values.getNumber(run(args[1], scope, reference, referenceData)));
+operatorArray[operatorTypes.FUNCTION] = args => {
+    return new values.Value(values.types.FUNCTION, { args: args[0], body: args[1] });
 }
-operatorArray[operatorTypes.GREATERTHANOREQUALS] = (args, scope, reference, referenceData) => {
-    return new values.Value(values.types.BOOLEAN, values.getNumber(run(args[0], scope, reference, referenceData)) >= values.getNumber(run(args[1], scope, reference, referenceData)));
+operatorArray[operatorTypes.FUNCTIONCALL] = (args, scope, reference, referenceData) => {
+    const fun = run(args[0], scope, reference, referenceData, false, false, false);
+    let [value, givenScope] = breakVarWithScope(fun, scope, reference);
+    if(givenScope === null) {
+        givenScope = scope;
+    }
+    const _scope = new Scope(givenScope);
+    if(value.type != values.types.FUNCTION) {
+        throw `Expecting a function!`;
+    }
+    if(args[1].length < value.val.args.length) {
+        throw `The given function requires ${value.val.args.length} arguments, but only ${args[1].length} were provided!`;
+    }
+    for(let i = 0; i < value.val.args.length; i++) {
+        _scope.variables[value.val.args[i]] = run(args[1][i], scope, reference, referenceData);
+    }
+    return run(value.val.body, _scope, reference, referenceData);
 }
-operatorArray[operatorTypes.VALUE] = args => {
-    return args;
-}
-module.exports = {Operator, operatorArray, operatorTypes, MAIN_SCOPE};
+module.exports = { Operator, operatorArray, operatorTypes };

@@ -8,7 +8,7 @@ class Entry {
 const tokens = {};
 const alphabet = "abcdefghijklmnopqrstuvwxyz";
 const numbers = "0123456789";
-const symbols = "()[]{},'";
+const symbols = "()[]{},'#";
 const operators = "+-*/=!|&<>%";
 const whitespace = " \t\n\r\xa0";
 const Token = {
