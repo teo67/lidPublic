@@ -1,5 +1,7 @@
 module.exports = (obj, prop) => {
-    if(--obj[prop] == 0) {
-        delete obj[prop];
+    const res = obj.get(prop);
+    obj.set(prop, res - 1);
+    if(res == 1) {
+        obj.delete(prop);
     }
 }

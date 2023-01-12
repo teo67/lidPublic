@@ -22,7 +22,7 @@ client.on(Discord.Events.InteractionCreate, async interaction => {
         const outputFormat = interaction.options.getString("output-format") ?? "last-only";
         const outputTarget = interaction.options.getString("output-target") ?? "channel-message";
         await interaction.deferReply({ ephemeral: outputTarget == "ephemeral-message" });
-        let output = runText(text, outputFormat);
+        let output = await runText(text, outputFormat);
 
         if(output.length == 0) {
             output = " ";

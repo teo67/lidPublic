@@ -181,9 +181,9 @@ class Parser {
         return current;
     }
 
-    checkAccessors(raw, current, under) {
+    checkAccessors(raw, current) {
         if(raw == "[") {
-            const returning = new operators.Operator(operators.operatorTypes.ACCESS, [current, this[under]()]);
+            const returning = new operators.Operator(operators.operatorTypes.ACCESS, [current, this.parseAssignment()]);
             this.requireSymbol("]");
             return returning;
         }

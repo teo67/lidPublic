@@ -1,3 +1,4 @@
+const data = require('./helpers/data.js');
 class Value {
     constructor(type, val) {
         this.type = type;
@@ -18,8 +19,8 @@ const types = {
     FUNCTION_REFERENCE: 8,
     ARRAY_ACCESS: 9
 };
-const getString = (val, scope, references) => {
-    const value = breakAccess(breakReference(breakVariable(val, scope), references), references);
+const getString = async (val, scope, references) => {
+    const value = await breakAccess(await breakReference(breakVariable(val, scope), references), references);
     switch(value.type) {
         case types.NUMBER:
             return `${value.val}`;
@@ -34,7 +35,7 @@ const getString = (val, scope, references) => {
                 if(key != `${i}`) {
                     returning += `.${key} = `;
                 }
-                returning += getString(value.val[key], scope, references);
+                returning += await getString(value.val[key], scope, references);
                 returning += ", ";
                 i++;
             }
@@ -88,12 +89,12 @@ const getArray = value => {
     }
     throw "Expecting an object!";
 }
-const breakReference = (value, reference) => {
+const breakReference = async (value, reference) => {
     if(value.type == types.ARRAY_REFERENCE) {
-        return new Value(types.ARRAY, reference[value.val].val);
+        return new Value(types.ARRAY, (await data.getReference(reference, value.val)).val);
     }
     if(value.type == types.FUNCTION_REFERENCE) {
-        return new Value(types.FUNCTION, reference[value.val].val);
+        return new Value(types.FUNCTION, (await data.getReference(reference, value.val)).val);
     }
     return value;
 }
@@ -103,9 +104,9 @@ const breakVariable = (value, scope) => {
     }
     return value;
 }
-const breakAccess = (value, reference) => {
+const breakAccess = async (value, reference) => {
     if(value.type == types.ARRAY_ACCESS) {
-        let arr = breakReference(value.val.arr, reference);
+        let arr = await breakReference(value.val.arr, reference);
         if(arr.type != types.ARRAY) {
             throw `Unable to access element ${value.val.num} of a non-array item!`;
         }
@@ -114,7 +115,7 @@ const breakAccess = (value, reference) => {
         if(val === undefined) {
             throw `The object being accessed does not have a key for '${value.val.num}'!`;
         }
-        return breakAccess(val, reference);
+        return await breakAccess(val, reference);
     }
     return value;
 }
