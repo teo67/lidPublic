@@ -27,9 +27,11 @@ const basicOperations = [
     }
 ];
 class Parser {
-    constructor(lex) {
+    constructor(lex, scopes) {
         this.lexer = lex;
         this.stored = null;
+        this.scopes = scopes;
+        this.output = "";
     }
     next() {
         if(this.stored != null) {
@@ -243,21 +245,21 @@ class Parser {
             if(isNaN(flo)) {
                 throw `Invalid number: ${value.raw}`;
             }
-            return new operators.Operator(operators.operatorTypes.NUMBER, flo);
+            return new operators.Operator(operators.operatorTypes.VALUE, flo);
         }
         if(value.type == TokenTypes.STRING) {
             if(value.raw[0] != '"' || value.raw[value.raw.length - 1] != '"') {
                 throw "Strings must start and end with quotation marks!";
             }
-            return new operators.Operator(operators.operatorTypes.STRING, value.raw.substring(1, value.raw.length - 1)); // cut off quotes
+            return new operators.Operator(operators.operatorTypes.VALUE, value.raw.substring(1, value.raw.length - 1)); // cut off quotes
         }
         if(value.type == TokenTypes.KEYWORD) {
             switch(value.raw) {
                 case "true":
                 case "false":
-                    return new operators.Operator(operators.operatorTypes.BOOLEAN, value.raw == "true");
+                    return new operators.Operator(operators.operatorTypes.VALUE, value.raw == "true");
                 case "none":
-                    return new operators.Operator(operators.operatorTypes.NONE, null);
+                    return new operators.Operator(operators.operatorTypes.VALUE, null);
                 case "delete":
                     const _next = this.next().raw;
                     return new operators.Operator(operators.operatorTypes.DELETE, _next);
@@ -276,6 +278,13 @@ class Parser {
                     }
                     const sco = this.parseScope();
                     return new operators.Operator(operators.operatorTypes.FOR, [li, sco]);
+                case "private":
+                case "public":
+                case "global":
+                    const inside = this.parseScope();
+                    return new operators.Operator(operators.operatorTypes.SCOPEDREFERENCE, [this.scopes, "get" + value.raw, inside]);
+                case "out":
+                    return new operators.Operator(operators.operatorTypes.PRINT, [a => this.output += a + "\n", this.parseAssignment()]);
                 default:
                     return new operators.Operator(operators.operatorTypes.REFERENCE, value.raw);
             }

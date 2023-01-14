@@ -6,5 +6,4 @@ module.exports = (obj, prop) => {
     } else {
         obj.set(prop, res + 1);
     }
-    console.log(obj);
 }

@@ -30,11 +30,11 @@ const read = async (filename, def) => {
     return JSON.parse(str);
 }
 
-const load = async (model, id) => {
+const load = async (model, id = null) => {
     try {
-        return (await model.findOne({ _id: id }));
+        return (await model.findOne(id === null ? {} : { _id: id }));
     } catch(e) {
-        console.log(`Servers faied: ${e}`);
+        console.log(`Servers failed: ${e}`);
         return Promise.reject(e);
     }
 }
@@ -46,7 +46,7 @@ const clearMongo = async model => {
 const createReference = async (references, val) => {
     const ref = new Reference({
         usedBy: 0, 
-        uses: {},
+        uses: new Map(),
         val: val
     });
     ref.markModified('val');
@@ -69,4 +69,4 @@ const getReference = async (references, id) => {
     return val;
 }
 
-module.exports = { write, read, clear, createReference, getReference, clearMongo };
+module.exports = { write, read, clear, createReference, getReference, clearMongo, load };

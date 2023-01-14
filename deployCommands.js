@@ -33,6 +33,16 @@ const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
                     { name: "ephemeral-message", value: "ephemeral-message" },
                     { name: "direct-message", value: "direct-message" }
                 )
+        )
+        .addStringOption(option => 
+            option.setName("visibility")
+                .setDescription("change what outer scope your variables will reference (default: public)")
+                .setRequired(false)
+                .addChoices(
+                    { name: "private", value: "private" },
+                    { name: "public", value: "public" },
+                    { name: "global", value: "global" }
+                )
         );
         
         const data = await rest.put(

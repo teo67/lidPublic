@@ -19,15 +19,37 @@ const types = {
     FUNCTION_REFERENCE: 8,
     ARRAY_ACCESS: 9
 };
-const getString = async (val, scope, references) => {
+const type = val => {
+    const inst = typeof val;
+    if(inst === 'number') {
+        return types.NUMBER;
+    }
+    if(inst === 'string') {
+        return types.STRING;
+    }
+    if(inst === 'boolean') {
+        return types.BOOLEAN;
+    }
+    if(val === null) {
+        return types.NONE;
+    }
+    return val.type;
+}
+const breakAndGetString = async (val, scope, references) => {
     const value = await breakAccess(await breakReference(breakVariable(val, scope), references), references);
-    switch(value.type) {
+    return await getString(value, scope, references);
+}
+const getString = async (value, scope, references, typ = null) => {
+    if(typ === null) {
+        typ = type(value);
+    }
+    switch(typ) {
         case types.NUMBER:
-            return `${value.val}`;
+            return `${value}`;
         case types.STRING:
-            return value.val;
+            return value;
         case types.BOOLEAN:
-            return value.val ? "true" : "false";
+            return value ? "true" : "false";
         case types.ARRAY:
             let returning = "[";
             let i = 0;
@@ -35,7 +57,7 @@ const getString = async (val, scope, references) => {
                 if(key != `${i}`) {
                     returning += `.${key} = `;
                 }
-                returning += await getString(value.val[key], scope, references);
+                returning += await breakAndGetString(value.val[key], scope, references);
                 returning += ", ";
                 i++;
             }
@@ -49,18 +71,21 @@ const getString = async (val, scope, references) => {
             return "none";
     }
 }
-const getNumber = value => {
-    switch(value.type) {
+const getNumber = (value, typ = null) => {
+    if(typ === null) {
+        typ = type(value);
+    }
+    switch(typ) {
         case types.NUMBER:
-            return value.val;
+            return value;
         case types.STRING:
-            const res = parseFloat(value.val);
+            const res = parseFloat(value);
             if(isNaN(res)) {
-                throw `String ${value.val} could not be converted to a number!`;
+                throw `String ${value} could not be converted to a number!`;
             }
             return res;
         case types.BOOLEAN:
-            return value.val ? 1 : 0;
+            return value ? 1 : 0;
         case types.ARRAY:
             throw "Unable to convert object to number!";
         case types.FUNCTION:
@@ -70,15 +95,15 @@ const getNumber = value => {
     }
 }
 const getBoolean = value => {
-    switch(value.type) {
+    switch(type(value)) {
         case types.NUMBER:
-            return value.val != 0.0;
+            return value != 0.0;
         case types.STRING:
         case types.ARRAY:
         case types.FUNCTION:
             return true;
         case types.BOOLEAN:
-            return value.val;
+            return value;
         default:
             return false;
     }
@@ -100,28 +125,32 @@ const breakReference = async (value, reference) => {
 }
 const breakVariable = (value, scope) => {
     if(value.type == types.VARIABLE) {
-        return breakVariable(scope.get(value.val), scope);
+        const sco = value.scope ?? scope;
+        return breakVariable(sco.get(value.val), sco);
     }
     return value;
 }
 const breakAccess = async (value, reference) => {
     if(value.type == types.ARRAY_ACCESS) {
-        let arr = await breakReference(value.val.arr, reference);
+        let arr = await breakReference(value.arr, reference);
         if(arr.type != types.ARRAY) {
-            throw `Unable to access element ${value.val.num} of a non-array item!`;
+            throw `Unable to access element ${value.num} of a non-array item!`;
         }
         arr = arr.val;
-        const val = arr[value.val.num];
+        const val = arr[value.num];
         if(val === undefined) {
-            throw `The object being accessed does not have a key for '${value.val.num}'!`;
+            throw `The object being accessed does not have a key for '${value.num}'!`;
         }
         return await breakAccess(val, reference);
     }
     return value;
 }
 const equals = (a, b) => {
-    return a.type == b.type && (a.type == types.NONE ? true : a.val == b.val);
+    if(a.val !== undefined) {
+        return b.val !== undefined && a.type == b.type;
+    }
+    return a == b;
 }
 module.exports = {
-    Value, types, getString, getNumber, getBoolean, getArray, breakVariable, breakReference, breakAccess, equals
+    Value, types, getString, getNumber, getBoolean, getArray, breakVariable, breakReference, breakAccess, equals, type, breakAndGetString
 };

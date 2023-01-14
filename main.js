@@ -1,12 +1,11 @@
 require('dotenv').config();
-
 const Discord = require('discord.js');
 const embed = require('./helpers/embed.js');
 const splitEmbed = require('./helpers/splitEmbed.js');
 const navigate = require('./helpers/navigate.js');
 const runText = require('./helpers/runText.js');
 
-const client = new Discord.Client({ intents: [Discord.GatewayIntentBits.Guilds, Discord.GatewayIntentBits.MessageContent, Discord.GatewayIntentBits.GuildMessages, Discord.GatewayIntentBits.GuildMessageReactions] });
+const client = new Discord.Client({ intents: [Discord.GatewayIntentBits.Guilds, Discord.GatewayIntentBits.GuildMessages, Discord.GatewayIntentBits.GuildMessageReactions] });
 
 client.once(Discord.Events.ClientReady, () => {
     console.log("lid is up and running!");
@@ -21,9 +20,9 @@ client.on(Discord.Events.InteractionCreate, async interaction => {
         const text = interaction.options.getString("input");
         const outputFormat = interaction.options.getString("output-format") ?? "last-only";
         const outputTarget = interaction.options.getString("output-target") ?? "channel-message";
+        const visibility = interaction.options.getString("visibility") ?? "public";
         await interaction.deferReply({ ephemeral: outputTarget == "ephemeral-message" });
-        let output = await runText(text, outputFormat);
-
+        let output = await runText(text, outputFormat, visibility, interaction);
         if(output.length == 0) {
             output = " ";
         }
